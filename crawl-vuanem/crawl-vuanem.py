@@ -53,7 +53,7 @@ def scrape_page(driver):
     # until the element with attribute data-component-type="s-search-result" is present
     WebDriverWait(driver, 10).until(
         EC.visibility_of_element_located(
-            (By.CSS_SELECTOR, '[data-component-type="s-search-result"]')
+            (By.CSS_SELECTOR, ".product-item")
         )
     )
     product_cards = driver.find_elements(
@@ -89,10 +89,12 @@ def extract_deal(card):
         ).get_attribute("src")
 
         # Số lượng đã bán
-        product_sold_number = card.find_element(
+        sold_elements = card.find_element(
             By.CSS_SELECTOR, ".product-sold-number"
         ).text 
+        product_sold_number = sold_elements[0].text if sold_elements else None
 
+        # Link sản phẩm
         link = card.find_element(
             By.CSS_SELECTOR, ".product-card-content a"
         ).get_attribute("href")
