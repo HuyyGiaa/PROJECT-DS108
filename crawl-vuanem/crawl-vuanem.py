@@ -73,7 +73,7 @@ def scrape_page(driver):
 def extract_deal(card):
     try:
         product_name = card.find_element(By.CSS_SELECTOR, ".product-card-content a[title]").get_attribute("title")
-        price = card.find_element(By.CSS_SELECTOR, ".product-price").text
+        # price = card.find_element(By.CSS_SELECTOR, ".product-price").text
         image_url = card.find_element(By.CSS_SELECTOR, "img").get_attribute("src")
         link = card.find_element(By.CSS_SELECTOR, ".product-card-content a").get_attribute("href")
 
@@ -89,13 +89,24 @@ def extract_deal(card):
 
         # Try lấy rating và số lượt đánh giá (Dựa trên class trong ảnh image_9e039f.jpg)
         try:
-            rating_score = card.find_element(By.CSS_SELECTOR, ".rate-container .rate").text
-            total_reviews = card.find_element(By.CSS_SELECTOR, ".rate-container .total").text
+            # Tỉ lệ đánh giá
+            try:
+                raw_rating_score = card.find_element(By.CSS_SELECTOR, ".rate-container .rate").text.strip()
+                rating_score = float(raw_rating_score.replace("/5", "").strip())
+            except Exception:
+                rating_score = None
+
+            # Số lượng đánh giá
+            try:
+                raw_total_reviews = card.find_element(By.CSS_SELECTOR, ".rate-container .total").text.strip()
+                total_reviews = int(raw_total_reviews.replace("(", "").replace(")", "").strip())
+            except Exception:
+                total_reviews = None
         except: pass
 
         return {
             "product_name": product_name,
-            "price": price,
+            # "price": price,
             "image_url": image_url,
             "link": link,
             "product_sold_number": product_sold_number,
@@ -117,7 +128,7 @@ def scrape_all_variations_on_page(driver):
     # description = ""
     try:
         description = driver.find_element(By.ID, "content-product-characteristics").text
-    except:
+    except Exception:
         description = "Không có mô tả"
 
 
@@ -156,7 +167,12 @@ def scrape_all_variations_on_page(driver):
                         time.sleep(1.5) # Chờ giá update
                         
                         # Lấy giá trị
-                        current_price = driver.find_element(By.CSS_SELECTOR, ".info__current-price").text
+                        raw_current_price = driver.find_element(By.CSS_SELECTOR, ".info__current-price").get_attribute("innerText").strip()
+                        try:
+                            current_price = int(raw_current_price.replace("đ", "").replace(".", "").strip())
+                        except Exception:
+                            current_price = 0
+
                         current_sku = driver.find_element(By.ID, "variant-sku").get_attribute("value")
                         
                         variations_data.append({
@@ -172,7 +188,12 @@ def scrape_all_variations_on_page(driver):
             # TH2: Không có nút độ dày (Chỉ có size)
             else:
                 try:
-                    current_price = driver.find_element(By.CSS_SELECTOR, ".info__current-price").text
+                    raw_current_price = driver.find_element(By.CSS_SELECTOR, ".info__current-price").get_attribute("innerText").strip()
+                    try: 
+                        current_price = int(raw_current_price.replace("đ", "").replace(".", "").strip())
+                    except Exception:
+                        current_price = 0
+
                     current_sku = driver.find_element(By.ID, "variant-sku").get_attribute("value")
                     
                     variations_data.append({
