@@ -1,17 +1,7 @@
-"""
-Amazon Deals Scraper - Beginner Friendly Version
-=================================================
-This script crawls Amazon deals and saves them to a CSV file.
-
-What you need to install:
-    pip install selenium webdriver-manager
-
-How to run:
-    python crawl.py
-"""
-
+import json
 import time
 import csv
+from matplotlib import text
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -22,8 +12,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 
 # ===== SETTINGS =====
-START_URL = "https://vuanem.com/nem-cao-su-gummi-classic.html?sku=10302009"
-OUTPUT_CSV = "deals.csv"
+START_URL = "https://vuanem.com/danh-muc/nem"
+OUTPUT_JSON = "deals.json"
 MAX_PAGES = None  # None means scrape all pages, or set a number like 5
 WAIT_TIME = 2  # seconds to wait between pages
 
@@ -47,25 +37,34 @@ def create_driver():
 
 # ===== STEP 2: Scrape Products from Current Page =====
 def scrape_page(driver):
-    """Gets all product deals from the current page."""
-
-    # Wait for products to load (up to 10 seconds)
-    # until the element with attribute data-component-type="s-search-result" is present
-    WebDriverWait(driver, 10).until(
-        EC.visibility_of_element_located(
-            (By.CSS_SELECTOR, ".product-item")
-        )
-    )
-    product_cards = driver.find_elements(
-        By.CSS_SELECTOR, ".product-item"
-    )
-
-    # Extract data from each product card
+    """Lấy tất cả các thẻ sản phẩm trên trang hiện tại."""
+    
     all_deals = []
-    for card in product_cards:
-        deal = extract_deal(card)
-        if deal:  # Only add if we got valid data
-            all_deals.append(deal)
+    
+    try:
+        # 1. Cơ chế cuộn trang để kích hoạt Lazy Load ảnh và thẻ HTML
+        # Cuộn từ từ 3 lần để đảm bảo web load kịp
+        for i in range(1, 4):
+            driver.execute_script(f"window.scrollTo(0, document.body.scrollHeight * {i/3});")
+            time.sleep(1) # Chờ 1 giây mỗi lần cuộn
+            
+        # 2. Chờ cho đến khi các thẻ sản phẩm xuất hiện trong HTML (Tối đa 10s)
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, ".product-item"))
+        )
+        
+        # 3. Gom tất cả các thẻ sản phẩm trên trang
+        product_cards = driver.find_elements(By.CSS_SELECTOR, ".product-item")
+        print(f"Đã tìm thấy {len(product_cards)} sản phẩm trên trang này.")
+
+        # 4. Trích xuất dữ liệu từng thẻ
+        for card in product_cards:
+            deal = extract_deal(card)
+            if deal:  # Chỉ thêm vào list nếu hàm trích xuất không bị lỗi (không trả về None)
+                all_deals.append(deal)
+
+    except Exception as e:
+        print(f"Lỗi khi tải danh sách sản phẩm trên trang: {e}")
 
     return all_deals
 
@@ -73,140 +72,265 @@ def scrape_page(driver):
 # ===== STEP 3: Extract Data from One Product Card =====
 def extract_deal(card):
     try:
-        # Tên sản phẩm (từ attribute title)
-        product_name = card.find_element(
-            By.CSS_SELECTOR, ".product-card-content a[title]"
-        ).get_attribute("title")
+        product_name = card.find_element(By.CSS_SELECTOR, ".product-card-content a[title]").get_attribute("title")
+        price = card.find_element(By.CSS_SELECTOR, ".product-price").text
+        image_url = card.find_element(By.CSS_SELECTOR, "img").get_attribute("src")
+        link = card.find_element(By.CSS_SELECTOR, ".product-card-content a").get_attribute("href")
 
-        # Giá
-        price = card.find_element(
-            By.CSS_SELECTOR, ".product-price"
-        ).text
+        # Khai báo sẵn các biến tránh lỗi nếu không tìm thấy
+        product_sold_number = None
+        rating_score = None
+        total_reviews = None
 
-        # Ảnh
-        image_url = card.find_element(
-            By.CSS_SELECTOR, "img"
-        ).get_attribute("src")
+        # Try lấy số lượng bán
+        try:
+            product_sold_number = card.find_element(By.CSS_SELECTOR, ".product-sold-number").text
+        except: pass
 
-        # Số lượng đã bán
-        sold_elements = card.find_element(
-            By.CSS_SELECTOR, ".product-sold-number"
-        ).text 
-        product_sold_number = sold_elements[0].text if sold_elements else None
-
-        # Link sản phẩm
-        link = card.find_element(
-            By.CSS_SELECTOR, ".product-card-content a"
-        ).get_attribute("href")
+        # Try lấy rating và số lượt đánh giá (Dựa trên class trong ảnh image_9e039f.jpg)
+        try:
+            rating_score = card.find_element(By.CSS_SELECTOR, ".rate-container .rate").text
+            total_reviews = card.find_element(By.CSS_SELECTOR, ".rate-container .total").text
+        except: pass
 
         return {
             "product_name": product_name,
             "price": price,
             "image_url": image_url,
             "link": link,
-            "product_sold_number": product_sold_number
+            "product_sold_number": product_sold_number,
+            "rating": rating_score,
+            "reviews": total_reviews
         }
 
     except Exception as e:
-        print("Error:", e)
+        print("Lỗi khi cào Card:", e)
         return None
 
+# ===== STEP 4: Scrape All Variations on Product Page =====
+def scrape_all_variations_on_page(driver):
 
-# ===== STEP 4: Go to Next Page =====
+    """Hàm cào toàn bộ thông tin: Mô tả, Bình luận, và các Biến thể giá/size"""
+    print("Đang cào mô tả sản phẩm")
+    
+    # Cào Mô tả sản phẩm
+    # description = ""
+    try:
+        description = driver.find_element(By.ID, "content-product-characteristics").text
+    except:
+        description = "Không có mô tả"
+
+
+    """Hàm này mô phỏng click vào các nút Size và Độ dày để lấy giá"""
+    
+    variations_data = []
+    
+    sizes_count = len(driver.find_elements(By.CSS_SELECTOR, "button.info__size-option"))
+    thickness_count = len(driver.find_elements(By.CSS_SELECTOR, "button.info__thickness-option"))
+    print(f"Tìm thấy {sizes_count} kích thước và {thickness_count} độ dày.")
+
+    for i in range(sizes_count):
+        try:
+            # Tìm lại mảng size ở mỗi vòng lặp 
+            sizes = driver.find_elements(By.CSS_SELECTOR, "button.info__size-option")
+            size_btn = sizes[i]
+            size_name = size_btn.get_attribute("data-size") 
+            
+            # Click size
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", size_btn)
+            driver.execute_script("arguments[0].click();", size_btn)
+            time.sleep(1)
+
+            # TH1: Có nút độ dày
+            if thickness_count > 0:
+                for j in range(thickness_count):
+                    try:
+                        # Tìm lại mảng độ dài ở mỗi vòng lặp
+                        thicknesses = driver.find_elements(By.CSS_SELECTOR, "button.info__thickness-option")
+                        thick_btn = thicknesses[j] # Bốc đúng nút độ dày ở vị trí thứ j
+                        thickness_name = thick_btn.get_attribute("data-thickness")
+                        
+                        # Click độ dày
+                        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", thick_btn)
+                        driver.execute_script("arguments[0].click();", thick_btn)
+                        time.sleep(1.5) # Chờ giá update
+                        
+                        # Lấy giá trị
+                        current_price = driver.find_element(By.CSS_SELECTOR, ".info__current-price").text
+                        current_sku = driver.find_element(By.ID, "variant-sku").get_attribute("value")
+                        
+                        variations_data.append({
+                            "size": size_name,
+                            "thickness": thickness_name,
+                            "price": current_price,
+                            "sku": current_sku
+                        })
+                    except Exception as e:
+                        print(f"Lỗi khi cào độ dày thứ {j+1}: {e}")
+                        continue
+
+            # TH2: Không có nút độ dày (Chỉ có size)
+            else:
+                try:
+                    current_price = driver.find_element(By.CSS_SELECTOR, ".info__current-price").text
+                    current_sku = driver.find_element(By.ID, "variant-sku").get_attribute("value")
+                    
+                    variations_data.append({
+                        "size": size_name,
+                        "thickness": None,
+                        "price": current_price,
+                        "sku": current_sku
+                    })
+                except Exception as e:
+                    pass
+        except Exception as e:
+            print(f"Lỗi khi cào size thứ {i+1}: {e}")
+            continue
+                
+    return {
+        "description": description,
+        "variations": variations_data
+    }
+
+# ===== STEP 5: Go to Next Page =====
 def go_to_next_page(driver):
-    """Clicks the 'Next' button. Returns True if successful, False if no more pages."""
+    """Chuyển sang trang tiếp theo dựa vào thuộc tính data-page. Trả về True nếu thành công."""
 
     try:
-        # Find the Next button
-        next_button = driver.find_element(By.CSS_SELECTOR, ".s-pagination-next")
+        # Tìm thẻ li đang active (trang hiện tại)
+        active_li = driver.find_element(By.CSS_SELECTOR, "li.active[data-page]")
+        
+        # Lấy số trang hiện tại và cộng thêm 1
+        current_page = int(active_li.get_attribute("data-page"))
+        next_page = current_page + 1
+        
+        # Thử tìm thẻ li của trang tiếp theo
+        try:
+            # Tìm thẻ li có data-page bằng next_page
+            next_li = driver.find_element(By.CSS_SELECTOR, f"li[data-page='{next_page}']")
+            
+            # Phải click vào thẻ <a> nằm trong thẻ li thì web mới chuyển trang
+            next_link = next_li.find_element(By.TAG_NAME, "a")
+            
+            # Cuộn chuột đến nút đó để không bị lỗi che khuất
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", next_link)
+            time.sleep(1) 
+            
+            # Click chuyển trang
+            driver.execute_script("arguments[0].click();", next_link)
+            print(f"Đang chuyển sang trang {next_page}...")
+            
+            time.sleep(3) # Chờ 3s cho trang mới tải xong
+            return True
+            
+        except Exception:
+            print("Đã đến trang cuối cùng. Không còn trang tiếp theo.")
+            return False
 
-        # Check if button is disabled (last page)
-        button_classes = next_button.get_attribute("class") or ""
-        if "s-pagination-disabled" in button_classes:
-            return False  # No more pages
-
-        # Click the button and wait
-        next_button.click()
-        time.sleep(WAIT_TIME)
-        return True
-
-    except Exception:
-        # Button not found, so we're on the last page
+    except Exception as e:
+        print(f"Lỗi khi tìm phân trang: {e}")
         return False
 
 
-# ===== STEP 5: Save All Deals to CSV File =====
-def save_to_csv(deals, filename):
-    """Saves the list of deals to a CSV file."""
+# ===== STEP 6: Save All Deals to CSV File =====
+def save_to_json(deals, filename):
+    """Lưu danh sách sản phẩm (bao gồm cả biến thể) vào file JSON."""
 
     if not deals:
-        print("No deals to save.")
+        print("Không có dữ liệu để lưu.")
         return
 
-    # Open file and write data
-    with open(filename, "w", newline="", encoding="utf-8") as file:
-        # Get column names from first deal
-        columns = deals[0].keys()
-        writer = csv.DictWriter(file, fieldnames=columns)
+    # Mở file với encoding="utf-8" để không bị lỗi font tiếng Việt
+    with open(filename, "w", encoding="utf-8") as file:
+        
+        # Dùng json.dump để ghi dữ liệu
+        # ensure_ascii=False: Bắt buộc phải có để giữ nguyên dấu tiếng Việt (không bị biến thành mã \u00e1)
+        # indent=4: Lùi đầu dòng 4 khoảng trắng, giúp file JSON hiện ra có cấu trúc cây thụt lề cực kỳ dễ đọc bằng mắt thường
+        json.dump(deals, file, ensure_ascii=False, indent=4)
 
-        # Write header row
-        writer.writeheader()
-
-        # Write all deals
-        writer.writerows(deals)
-
-    print(f"\nSaved {len(deals)} deals to {filename}")
+    print(f"\nĐã lưu thành công {len(deals)} sản phẩm (cùng các biến thể) vào file {filename}")
 
 
-# ===== STEP 6: Main Program - Put It All Together =====
+# ===== STEP 7: Main Program - Lắp ráp cỗ máy =====
 def main():
-    """Main function that runs the entire scraper."""
+    """Hàm chính điều phối toàn bộ quá trình cào dữ liệu 2 lớp.""" 
 
-    # Start the browser
-    print("Starting browser...")
+    print("Đang khởi động trình duyệt")
     driver = create_driver()
 
-    # This will store all deals from all pages
-    all_deals = []
+    # Mảng chứa toàn bộ dữ liệu cuối cùng
+    all_products = []
 
     try:
-        # Open the Amazon deals page
-        print(f"Opening {START_URL}")
+        # PHASE 1: CÀO LẤY THÔNG TIN CƠ BẢN VÀ LINK Ở TRANG DANH MỤC
+        print(f"\n[PHASE 1] Đang mở trang danh mục: {START_URL}")
         driver.get(START_URL)
-        time.sleep(WAIT_TIME)
+        time.sleep(3) # Chờ trang load ban đầu
 
-        # Loop through pages
         page_number = 1
         while True:
-            print(f"Scraping page {page_number}...", end=" ")
+            print(f"Đang quét danh sách sản phẩm trang {page_number}")
 
-            # Get all deals from current page
-            deals_on_page = scrape_page(driver)
-            all_deals.extend(deals_on_page)
+            # Lấy các thẻ sản phẩm (Step 2)
+            products_on_page = scrape_page(driver)
+            all_products.extend(products_on_page)
 
-            print(f"Found {len(deals_on_page)} deals (Total so far: {len(all_deals)})")
+            print(f"Thu thập được {len(products_on_page)} sản phẩm. (Tổng tạm thời: {len(all_products)})")
 
-            # Check if we should stop
+            # Kiểm tra giới hạn trang 
             if MAX_PAGES and page_number >= MAX_PAGES:
-                print(f"Reached the page limit of {MAX_PAGES} pages.")
+                print(f"Đã đạt giới hạn test {MAX_PAGES} trang.")
                 break
 
-            # Try to go to next page
+            # Bấm sang trang tiếp theo (gọi Step 5)
             if not go_to_next_page(driver):
-                print("No more pages available.")
                 break
 
             page_number += 1
 
+        # PHASE 2: CHUI VÀO TỪNG LINK ĐỂ CÀO MÔ TẢ & BIẾN THỂ SIZE
+        print("\n==================================================")
+        print(f"[PHASE 2] BẮT ĐẦU VÀO TỪNG LINK CỦA {len(all_products)} SẢN PHẨM ĐỂ CÀO SÂU")
+        print("==================================================\n")
+
+        # Duyệt qua từng sản phẩm đã gom được ở Phase 1
+        for index, product in enumerate(all_products, start=1):
+            product_url = product.get("link")
+            
+            if not product_url:
+                continue
+
+            print(f"[{index}/{len(all_products)}] Đang cào chi tiết: {product.get('product_name')}")
+            
+            try:
+                # Truy cập vào link chi tiết của sản phẩm
+                driver.get(product_url)
+                time.sleep(2) # Chờ trang chi tiết load
+
+                # Cào mô tả và click chọn từng biến thể size/độ dày
+                detail_data = scrape_all_variations_on_page(driver)
+
+                # Nối dữ liệu cào sâu vào dữ liệu cơ bản
+                product["description"] = detail_data["description"]
+                product["variations"] = detail_data["variations"]
+
+            except Exception as e:
+                print(f" Lỗi khi cào chi tiết sản phẩm {product_url}: {e}")
+                # Gán giá trị mặc định nếu trang này bị lỗi để không hỏng cấu trúc JSON
+                product["description"] = "Lỗi khi tải"
+                product["variations"] = []
+
     finally:
-        # Always close the browser when done
-        print("Closing browser...")
+        # Dù code chạy thành công hay văng lỗi giữa chừng, luôn phải đóng trình duyệt
+        print("\nĐang đóng trình duyệt")
         driver.quit()
 
-    # Save all deals to CSV file
-    save_to_csv(all_deals, OUTPUT_CSV)
+    save_to_json(all_products, OUTPUT_JSON)
 
 
 # Run the program
 if __name__ == "__main__":
     main()
+
+
+    
