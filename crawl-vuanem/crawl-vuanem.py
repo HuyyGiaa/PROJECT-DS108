@@ -132,6 +132,75 @@ def scrape_all_variations_on_page(driver):
         description = "Không có mô tả"
 
 
+    # 1.5 Click sang tab "THÔNG SỐ KỸ THUẬT"
+    try:
+        product_specification = driver.find_element(By.ID, "tab-specifications")
+        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", product_specification)
+        time.sleep(0.5)
+        driver.execute_script("arguments[0].click();", product_specification)
+        time.sleep(1) # Chờ 1 giây để bảng render ra HTML
+    except Exception as e:
+        print("Lỗi khi click tab thông số kỹ thuật:", e)
+
+    # 2. Cào Bảng Thông số kỹ thuật
+    specifications = {
+        "origin": None,             
+        "warranty": None,
+        "layer_composition": None,  
+        "technology": None,
+        "firmness": None
+    }
+    
+    try:
+        # Kỹ thuật khóa mục tiêu
+        base_xpath = "//div[@id='content-specifications']"
+        
+        # Hàm dọn dẹp \n và khoảng trắng thừa, nối các dòng lại với nhau thật gọn gàng
+        clean_text = lambda text: ", ".join([t.strip() for t in text.split('\n') if t.strip()])
+        
+        try:
+            # Dùng lại textContent để bất chấp việc tab bị ẩn, kết hợp clean_text để dọn dẹp
+            raw_text = driver.find_element(By.XPATH, f"{base_xpath}//div[contains(@class, 'title') and contains(text(), 'Xuất xứ')]/following-sibling::div").get_attribute("textContent")
+            specifications["origin"] = clean_text(raw_text)
+        except: pass
+
+        try:
+            raw_text = driver.find_element(By.XPATH, f"{base_xpath}//div[contains(@class, 'title') and contains(text(), 'bảo hành')]/following-sibling::div").get_attribute("textContent")
+            cleaned_text = clean_text(raw_text).lower() # Ví dụ: "15 năm"
+            
+            # Lọc chỉ lấy các ký tự là chữ số (0-9) rồi ghép lại thành số nguyên
+            number_str = ''.join(filter(str.isdigit, cleaned_text))
+            
+            if number_str: # Đảm bảo là có số để tránh lỗi
+                number = int(number_str)
+                if "năm" in cleaned_text:
+                    specifications["warranty"] = number * 12  # Đổi ra tháng
+                else:
+                    specifications["warranty"] = number       # Giữ nguyên số tháng
+            else:
+                specifications["warranty"] = cleaned_text     # Nếu không có số nào, lưu nguyên text đã dọn dẹp (ví dụ: "Không bảo hành")
+                
+        except Exception as e:
+            pass
+
+        try:
+            raw_text = driver.find_element(By.XPATH, f"{base_xpath}//div[contains(@class, 'title') and contains(text(), 'Cấu tạo')]/following-sibling::div").get_attribute("textContent")
+            specifications["layer_composition"] = clean_text(raw_text)
+        except: pass
+
+        try:
+            raw_text = driver.find_element(By.XPATH, f"{base_xpath}//div[contains(@class, 'title') and contains(text(), 'Công nghệ')]/following-sibling::div").get_attribute("textContent")
+            specifications["technology"] = clean_text(raw_text)
+        except: pass
+        
+        try:
+            raw_text = driver.find_element(By.XPATH, f"{base_xpath}//div[contains(@class, 'title') and contains(text(), 'Độ cứng')]/following-sibling::div//*[contains(@class, 'active') or contains(@class, 'selected')]").get_attribute("textContent")
+            # Riêng độ cứng, nối bằng khoảng trắng thay vì dấu phẩy cho đẹp (VD: "Cứng trung bình (Vững)")
+            specifications["firmness"] = " ".join([t.strip() for t in raw_text.split('\n') if t.strip()])
+        except: pass
+
+    except Exception as e:
+        print(f"Lỗi khi cào bảng thông số kỹ thuật: {e}")
     """Hàm này mô phỏng click vào các nút Size và Độ dày để lấy giá"""
     
     variations_data = []
@@ -210,6 +279,7 @@ def scrape_all_variations_on_page(driver):
                 
     return {
         "description": description,
+        "specifications": specifications,
         "variations": variations_data
     }
 
@@ -272,7 +342,7 @@ def save_to_json(deals, filename):
     print(f"\nĐã lưu thành công {len(deals)} sản phẩm (cùng các biến thể) vào file {filename}")
 
 
-# ===== STEP 7: Main Program - Lắp ráp cỗ máy =====
+# ===== STEP 7: Main Program =====
 def main():
     """Hàm chính điều phối toàn bộ quá trình cào dữ liệu 2 lớp.""" 
 
@@ -333,12 +403,14 @@ def main():
 
                 # Nối dữ liệu cào sâu vào dữ liệu cơ bản
                 product["description"] = detail_data["description"]
+                product["specifications"] = detail_data["specifications"]
                 product["variations"] = detail_data["variations"]
 
             except Exception as e:
                 print(f" Lỗi khi cào chi tiết sản phẩm {product_url}: {e}")
                 # Gán giá trị mặc định nếu trang này bị lỗi để không hỏng cấu trúc JSON
                 product["description"] = "Lỗi khi tải"
+                product["specifications"] = {}
                 product["variations"] = []
 
     finally:
@@ -348,10 +420,34 @@ def main():
 
     save_to_json(all_products, OUTPUT_JSON)
 
+# ===== HÀM TEST NHANH 1 SẢN PHẨM =====
+def test_single_product():
+    print("Đang khởi động trình duyệt để TEST 1 SẢN PHẨM...")
+    driver = create_driver()
+    
+    # Bạn có thể thay link này bằng bất kỳ link nệm nào bạn muốn test
+    test_url = "https://vuanem.com/nem-cao-su-gummi-classic.html" 
+    
+    try:
+        print(f"\nĐang truy cập: {test_url}")
+        driver.get(test_url)
+        time.sleep(3) # Chờ web load
+        
+        # Gọi hàm cào sâu (Phase 2)
+        detail_data = scrape_all_variations_on_page(driver)
+        
+        # In thẳng kết quả ra Terminal (màn hình console) để kiểm tra bằng mắt
+        print("\n================ KẾT QUẢ TEST DỮ LIỆU ================")
+        print(json.dumps(detail_data, ensure_ascii=False, indent=4))
+        print("======================================================")
+        
+    except Exception as e:
+        print(f"Lỗi trong quá trình test: {e}")
+    finally:
+        driver.quit()
+        print("Đã đóng trình duyệt Test.")
 
 # Run the program
 if __name__ == "__main__":
     main()
-
-
-    
+    # test_single_product()
