@@ -13,7 +13,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 # ===== SETTINGS =====
 START_URL = "https://vuanem.com/danh-muc/nem"
-OUTPUT_JSON = "deals.json"
+OUTPUT_JSON = "vuanem.json"
 MAX_PAGES = None  # None means scrape all pages, or set a number like 5
 WAIT_TIME = 2  # seconds to wait between pages
 
@@ -81,7 +81,20 @@ def extract_deal(card):
         product_sold_number = None
         rating_score = None
         total_reviews = None
-
+        
+        
+        product_name_lower = product_name.lower()
+        known_brand = ["gummi", "amando", "liên á", "kim cương", "aeroflow", "goodnight", "dunlopillo", "comfy", "spring air", "wonjun", "icomfy", "bedgear", "tempur"]
+        brand_name = "khác"
+        try:
+            for brand in known_brand:
+                if brand in product_name_lower:
+                    brand_name = brand.title()
+                    break
+        except Exception as e:
+            print(f"Error when extract brand name: {e}")
+        
+        
         # Try lấy số lượng bán
         try:
             product_sold_number = card.find_element(By.CSS_SELECTOR, ".product-sold-number").text
@@ -109,6 +122,7 @@ def extract_deal(card):
             # "price": price,
             "image_url": image_url,
             "link": link,
+            "brand": brand_name,
             "product_sold_number": product_sold_number,
             "rating": rating_score,
             "reviews": total_reviews
@@ -148,7 +162,7 @@ def scrape_all_variations_on_page(driver):
         "warranty": None,
         "layer_composition": None,  
         "technology": None,
-        "firmness": None
+        "firmness": None,
     }
     
     try:
@@ -282,7 +296,46 @@ def scrape_all_variations_on_page(driver):
         "specifications": specifications,
         "variations": variations_data
     }
-
+    
+def extract_deep_material(product_name, description, layer_composition):
+    """Hàm phân tích tổng hợp để tìm ra chất liệu thật sự của nệm"""
+    
+    text_pool = f"{product_name} {description or ''} {layer_composition or ''}".lower()
+    detected_materials = set() 
+    
+    if "cao su tổng hợp" in text_pool or "cao su nhân tạo" in text_pool or "cao su non" in text_pool:
+        detected_materials.add("Cao su tổng hợp")
+    elif "cao su thiên nhiên" in text_pool:
+        detected_materials.add("Cao su thiên nhiên")
+    elif "cao su" in text_pool:
+        detected_materials.add("cao su")
+            
+    if "foam" in text_pool or "mút" in text_pool or "memory foam" in text_pool:
+        detected_materials.add("Foam")
+        
+    if "bông ép" in text_pool:
+        detected_materials.add("Bông ép")
+    
+    # Dùng if-elif để bắt chính xác độ sâu của từ khóa lò xo
+    if "lò xo túi độc lập" in text_pool or "lò xo độc lập" in text_pool:
+        detected_materials.add("Lò xo túi độc lập")
+    elif "lò xo liên kết" in text_pool:
+        detected_materials.add("Lò xo liên kết")
+    elif "lò xo" in text_pool or "spring" in text_pool:
+        detected_materials.add("Lò xo") # Lưới an toàn cho các nệm chỉ ghi chung chung
+        
+    is_hybrid = "hybrid" in text_pool or "đa tầng" in text_pool
+    
+    if is_hybrid or len(detected_materials) >= 2:
+        details = " + ".join(list(detected_materials)) if detected_materials else "Không rõ"
+        return f"Nệm Hybrid ({details})"
+        
+    elif len(detected_materials) == 1:
+        return list(detected_materials)[0]
+        
+    else:
+        return "Uncategorized"
+    
 # ===== STEP 5: Go to Next Page =====
 def go_to_next_page(driver):
     """Chuyển sang trang tiếp theo dựa vào thuộc tính data-page. Trả về True nếu thành công."""
@@ -405,13 +458,19 @@ def main():
                 product["description"] = detail_data["description"]
                 product["specifications"] = detail_data["specifications"]
                 product["variations"] = detail_data["variations"]
-
+                layer_composition = detail_data["specifications"].get("layer_composition", "")
+                product["material_type"] = extract_deep_material(
+                    product["product_name"],
+                    product["description"],
+                    layer_composition
+                )
             except Exception as e:
                 print(f" Lỗi khi cào chi tiết sản phẩm {product_url}: {e}")
                 # Gán giá trị mặc định nếu trang này bị lỗi để không hỏng cấu trúc JSON
                 product["description"] = "Lỗi khi tải"
                 product["specifications"] = {}
                 product["variations"] = []
+                product["material"] = "Lỗi"
 
     finally:
         # Dù code chạy thành công hay văng lỗi giữa chừng, luôn phải đóng trình duyệt
@@ -426,16 +485,22 @@ def test_single_product():
     driver = create_driver()
     
     # Bạn có thể thay link này bằng bất kỳ link nệm nào bạn muốn test
-    test_url = "https://vuanem.com/nem-cao-su-gummi-classic.html" 
+    test_url = "https://vuanem.com/nem-foam-goodnight-active-hybrid.html" 
     
     try:
         print(f"\nĐang truy cập: {test_url}")
         driver.get(test_url)
         time.sleep(3) # Chờ web load
-        
+        test_product_name = "Nệm foam công nghệ Đức Goodnight Active Hybrid dày 20cm"
         # Gọi hàm cào sâu (Phase 2)
         detail_data = scrape_all_variations_on_page(driver)
-        
+        material = extract_deep_material(
+            test_product_name,
+            detail_data.get("description", ""),
+            detail_data["specifications"].get("layer_composition", "")
+        )
+        detail_data["test_product_name"] = test_product_name
+        detail_data["material_type_detected"] = material
         # In thẳng kết quả ra Terminal (màn hình console) để kiểm tra bằng mắt
         print("\n================ KẾT QUẢ TEST DỮ LIỆU ================")
         print(json.dumps(detail_data, ensure_ascii=False, indent=4))
@@ -451,3 +516,9 @@ def test_single_product():
 if __name__ == "__main__":
     main()
     # test_single_product()
+    # material = extract_deep_material(
+    #     "Nệm lò xo Amando Elite Original túi độc lập tiêu chuẩn khách sạn 5 sao dày 23cm",
+    #     "Thương hiệu Amando – Nghệ thuật giấc ngủ châu Âu, kiến tạo cho phong cách sống Việt.\nAmando được sinh ra từ khát vọng đưa những tiêu chuẩn nghỉ ngơi tinh tế bậc nhất châu Âu đến gần hơn với người Việt – không phô trương, không cầu kỳ, mà sang trọng theo cách rất riêng. Mỗi chiếc nệm là một cấu trúc được nghiên cứu kỹ lưỡng, kết hợp kỹ nghệ lò xo tiêu chuẩn quốc tế cùng vật liệu cao cấp, tạo nên cảm giác nâng đỡ chuẩn mực mà bạn có thể cảm nhận ngay từ lần trải nghiệm đầu tiên.\nĐiều làm Amando trở nên khác biệt không chỉ là sự chỉn chu trong chế tác mà còn là triết lý “Where European comfort meets the refined needs of Vietnamese living” – chuẩn châu Âu được tinh chỉnh để phù hợp với thể trạng, khí hậu và nhu cầu của người Việt. Nhờ vậy, Amando mang đến trải nghiệm ngủ sang trọng, cân bằng và bền bỉ theo thời gian, nhưng vẫn giữ được sự gần gũi mà mọi gia đình Việt đều trân trọng.\nHàng nghìn gia đình đã tin chọn Amando không chỉ vì chất lượng được kiểm chứng, mà vì cảm giác an tâm khi biết mình đang nghỉ ngơi trên một chiếc nệm được tạo ra với sự tôn trọng tuyệt đối dành cho sức khỏe và phong cách sống.\nNệm lò xo Amando Elite Original - Nệm lò xo quốc dân cho giấc ngủ êm ái và sang trọng.\nAmando Elite Original - lựa chọn được hàng ngàn gia đình trẻ tin tưởng, trở thành mẫu nệm lò xo bán chạy nhất tại Vua Nệm nhờ sự êm ái dễ chịu mà bất kỳ ai cũng có thể hòa hợp. Khung lò xo túi độc lập chắc chắn giúp hạn chế rung lắc tối đa, giữ cơ thể thư giãn tự nhiên ở mọi tư thế ngủ. Lớp topper foam thoáng khí, dày dặn và êm ái, giúp nâng đỡ đường cong cơ thể, hỗ trợ giảm áp lực lên cột sống, mang lại giấc ngủ sâu và dễ chịu mỗi đêm.\nKhông chỉ là một chiếc nệm, Elite Original còn là trải nghiệm nghỉ ngơi mà ai cũng xứng đáng - sang trọng vừa đủ, êm ái vừa vặn, đem đến cảm giác thư thái như một đêm nghỉ dưỡng chuẩn châu Âu ngay tại chính ngôi nhà thương yêu của bạn.\nThoáng khí & Điều hòa thân nhiệt - Không lo hầm bí khi nằm lâu\nLớp topper làm từ foam mật độ cao: tản nhiệt nhanh, hạn chế nóng lưng khi nằm lâu, phù hợp người thân nhiệt cao và trẻ nhỏ dễ rôm sảy.\nVải dệt kim Ultra Knitted: thoáng khí tự nhiên, giảm hầm bí trong thời tiết nóng ẩm giúp vệ sinh nệm luôn sạch và mát.\nChuyển động linh hoạt, tránh tiếng ồn - Ngủ ngon trọn giấc cùng người thương\nKhung lò xo túi độc lập: mỗi lò xo vận hành riêng, ôm theo từng chuyển động mà không gây lan truyền rung lắc như lò xo giàn truyền thống.\nHấp thụ rung động tối ưu: xoay trở nhẹ nhàng, không tạo cảm giác chao nghiêng hay bật nảy khó chịu.\nCách ly chuyển động hiệu quả: giữ không gian ngủ yên tĩnh để cả hai vẫn ngủ sâu, dù một người trở mình nhiều lần trong đêm.\nKhả năng kháng khuẩn tối ưu - Bảo vệ sức khỏe mỗi giấc ngủ\n• Vải kháng khuẩn Anti-Microbial: hạn chế sự phát triển của vi khuẩn và nấm.\n• Ngăn ngừa vi rút và tác nhân gây bệnh: giảm nguy cơ lây nhiễm trong không gian ngủ.\n• Bề mặt an toàn, lành tính: bảo vệ sức khỏe người sử dụng, đặc biệt phù hợp gia đình có trẻ nhỏ.\nCam kết rõ ràng - mua là yên tâm!\n• Chính sách ngủ thử 120 đêm.\n• Bảo hành chính hãng 10 năm.\n• Giao hàng và lắp đặt tận nơi, miễn phí toàn quốc.\n• Tư vấn riêng 1:1 - hỗ trợ từ A đến Z trước và sau mua.\nAi nên chọn nệm Amando Elite Original\n• Các cặp đôi muốn sở hữu giấc ngủ êm ái mà không bị rung lắc khi xoay trở.\n• Người có cân nặng hơn mức trung bình, tập gym hoặc hoạt động thể chất.\n• Người dễ đổ mồ hôi khi ngủ hoặc sống ở vùng khí hậu nóng ẩm.\n• Người hay đau mỏi lưng, vai gáy hoặc muốn hỗ trợ cột sống tốt hơn.\n• Người mong muốn sở hữu một chiếc nệm sang trọng để nâng cấp không gian phòng ngủ.\n*Nhằm mục đích liên tục nâng cao trải nghiệm giấc ngủ, Vua Nệm bảo lưu quyền cải tiến thiết kế và định lượng sản phẩm. Do đó, sản phẩm thực tế có thể có khác biệt nhỏ về ngoại quan so với mẫu trưng bày. Chúng tôi cam kết những điều chỉnh này hoàn toàn không làm thay đổi chất lượng, tính năng và cảm giác thoải mái của người nằm.",
+    #     "PU foam, Chất liệu Foam được tổng hợp từ Polyol và Diisocyanate: Độ đàn hồi cao, nâng đỡ cột sống, nhẹ bền., Lò xo túi độc lập, Hệ thống lò xo làm bằng thép chuyên dụng, cách ly nhau bằng túi vải: Nâng đỡ cơ thể tối ưu, kháng khuẩn hiệu quả, khi chuyển động không ảnh hưởng người nằm cạnh., Convoluted Foam, Convoluted foam áp dụng công nghệ profile cutting có khả năng biến đổi giúp nâng đỡ 3 vùng, giữ cột sống khỏe mạnh. thoáng khi tối ưu và mang lại cảm giác êm ái."
+    # )
+    # print(material)
