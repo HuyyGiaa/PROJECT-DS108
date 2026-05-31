@@ -114,18 +114,24 @@ def recommend(user_input, X, df_index):
     df_filtered = df_index.copy()
     if user_input.get("category"):
         df_filtered = df_filtered[df_filtered["category"] == user_input["category"]]
-    if user_input.get("price_max"):
+    if user_input.get("price_max") is not None:
         df_filtered = df_filtered[df_filtered["price"] <= user_input["price_max"]]
-    if user_input.get("price_min"):
+    if user_input.get("price_min") is not None:
         df_filtered = df_filtered[df_filtered["price"] >= user_input["price_min"]]
-    if user_input.get("thickness"):
-        df_filtered = df_filtered[df_filtered["thickness"] == user_input["thickness"]]
+        
+    # Xử lý khoảng độ dày mới
+    if user_input.get("thickness_min") is not None:
+        df_filtered = df_filtered[df_filtered["thickness"] >= user_input["thickness_min"]]
+    if user_input.get("thickness_max") is not None:
+        df_filtered = df_filtered[df_filtered["thickness"] < user_input["thickness_max"]]
+        
     if user_input.get("width"):
         df_filtered = df_filtered[df_filtered["width"] == user_input["width"]]
     if user_input.get("length"):
         df_filtered = df_filtered[df_filtered["length"] == user_input["length"]]
     if user_input.get("firmness") is not None:
         df_filtered = df_filtered[df_filtered["firmness"] == user_input["firmness"]]
+        
     df_result = get_similar(df_filtered, X)
     if df_result.empty:
         return pd.DataFrame()
@@ -152,22 +158,17 @@ def recommend_userclick(user_click_row, X, df_index):
     df_unique = df_result.drop_duplicates(subset=["product_name"], keep="first")
     
     top15 = df_unique.head(15).reset_index(drop=True)
-
     return top15.sample(n=min(5, len(top15)), random_state=None)
 
 
-def recommend_cold_start(df_index, price_min=None, price_max=None):
+def recommend_cold_start(df_index):
     df_sorted = df_index.copy()
-    # lọc theo giá nếu có
-    if price_min is not None:
-        df_sorted = df_sorted[df_sorted["price"] >= price_min]
-    if price_max is not None:
-        df_sorted = df_sorted[df_sorted["price"] <= price_max]
     if df_sorted.empty:
         return pd.DataFrame()
     df_sorted = df_sorted.sort_values(by="popularity_score", ascending=False)
     df_unique = df_sorted.drop_duplicates(subset=["category", "product_name"])
     top_cold_start = df_unique.groupby("category").head(3)
+    top_cold_start = top_cold_start.sort_values(by="popularity_score", ascending=False)
     return top_cold_start.reset_index(drop=True)
 
 
@@ -324,7 +325,6 @@ elif data_loaded and st.session_state.page == "search":
     st.markdown('<div class="sub-title">Chọn tiêu chí bên dưới để tìm chiếc nệm lý tưởng cho bạn</div>', unsafe_allow_html=True)
 
     categories     = ["(Tất cả)"] + sorted(df_index["category"].dropna().unique().tolist())
-    thickness_vals = ["(Tất cả)"] + sorted(df_index["thickness"].dropna().unique().tolist())
     firmness_vals  = ["(Tất cả)"] + sorted(df_index["firmness"].dropna().unique().tolist())
 
     col_filter, col_results = st.columns([1, 2.4], gap="large")
@@ -353,8 +353,22 @@ elif data_loaded and st.session_state.page == "search":
         )
         price_min_input, price_max_input = PRICE_RANGES[selected_price_label]
 
+        # Áp dụng cải tiến chia khoảng cho độ dày
         st.markdown('<div class="section-label">Độ dày (cm)</div>', unsafe_allow_html=True)
-        selected_thickness = st.selectbox("Độ dày", thickness_vals, label_visibility="collapsed")
+        THICKNESS_RANGES = {
+            "(Tất cả)":  (None, None),
+            "Dưới 10cm": (0, 10),
+            "10 – 15cm": (10, 15),
+            "15 – 20cm": (15, 20),
+            "20 – 25cm": (20, 25),
+            "25 – 30cm": (25, 30),
+            "Trên 30cm": (30, None),
+        }
+        selected_thickness_label = st.radio(
+            "Độ dày", list(THICKNESS_RANGES.keys()),
+            label_visibility="collapsed"
+        )
+        thick_min_input, thick_max_input = THICKNESS_RANGES[selected_thickness_label]
 
         width_vals  = ["(Tất cả)"] + sorted(df_index["width"].dropna().unique().tolist())
         length_vals = ["(Tất cả)"] + sorted(df_index["length"].dropna().unique().tolist())
@@ -380,8 +394,13 @@ elif data_loaded and st.session_state.page == "search":
                 user_input["price_min"] = price_min_input
             if price_max_input is not None:
                 user_input["price_max"] = price_max_input
-            if selected_thickness != "(Tất cả)":
-                user_input["thickness"] = selected_thickness
+            
+            # Đẩy vào user_input khoảng độ dày thay vì giá trị chính xác
+            if thick_min_input is not None:
+                user_input["thickness_min"] = thick_min_input
+            if thick_max_input is not None:
+                user_input["thickness_max"] = thick_max_input
+                
             if selected_width != "(Tất cả)":
                 user_input["width"]     = selected_width
             if selected_length != "(Tất cả)":
@@ -389,22 +408,25 @@ elif data_loaded and st.session_state.page == "search":
             if selected_firmness != "(Tất cả)":
                 user_input["firmness"]  = selected_firmness
 
-            # Kiểm tra xem có filter nào ngoài giá không
-            non_price_keys = {"category", "thickness", "width", "length", "firmness"}
-            has_non_price  = any(k in user_input for k in non_price_keys)
+            # Cải tiến: cold_start chỉ kích hoạt khi tất cả lựa chọn là "(Tất cả)"
+            is_all_all = (
+                selected_category == "(Tất cả)" and
+                selected_price_label == "(Tất cả)" and
+                selected_thickness_label == "(Tất cả)" and
+                selected_width == "(Tất cả)" and
+                selected_length == "(Tất cả)" and
+                selected_firmness == "(Tất cả)"
+            )
 
             with st.spinner("Đang tìm kiếm nệm phù hợp..."):
-                if not has_non_price:
-                    # Cold start: chỉ lọc giá (hoặc không lọc gì)
-                    result = recommend_cold_start(
-                        df_index,
-                        price_min=user_input.get("price_min"),
-                        price_max=user_input.get("price_max"),
-                    )
+                if is_all_all:
+                    result = recommend_cold_start(df_index)
+                    st.session_state.is_cold_start = True
                 else:
                     result = recommend(user_input, X, df_index)
+                    st.session_state.is_cold_start = False
+            
             st.session_state.search_results  = result
-            st.session_state.is_cold_start   = not has_non_price
 
         result        = st.session_state.search_results
         is_cold_start = st.session_state.get("is_cold_start", False)
