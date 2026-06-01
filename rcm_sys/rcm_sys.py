@@ -81,10 +81,22 @@ def recommend_userclick(user_click_row, X, df_index):
 
 def recommend_cold_start(df_index):
     df_sorted = df_index.copy()
+    
     if df_sorted.empty:
         return pd.DataFrame()
+    
     df_sorted = df_sorted.sort_values(by="popularity_score", ascending=False)
     df_unique = df_sorted.drop_duplicates(subset=["category", "product_name"])
-    top_cold_start = df_unique.groupby("category").head(3)
-    top_cold_start = top_cold_start.sort_values(by="popularity_score", ascending=False)
-    return top_cold_start.reset_index(drop=True)
+    
+    # Lấy top 5 mỗi category
+    top5_per_cat = df_unique.groupby("category").head(5)
+    
+    # Random 3 mỗi category (KHÔNG dùng apply)
+    result = []
+    for _, group in top5_per_cat.groupby("category"):
+        sampled = group.sample(n=min(3, len(group)))
+        result.append(sampled)
+    
+    top_cold_start = pd.concat(result)
+    
+    return top_cold_start.sort_values(by="popularity_score", ascending=False).reset_index(drop=True)
