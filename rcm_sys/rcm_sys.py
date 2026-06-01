@@ -7,6 +7,13 @@ X = load_npz("data/final/feature_matrix.npz")
 
 df_index = pd.read_csv("data/final/mattresses_index.csv", index_col=0)
 
+def load_data():
+    X = load_npz("data/final/feature_matrix.npz")
+    df_index = pd.read_csv("data/final/mattresses_index.csv")
+    return X, df_index
+
+
+# ── Core ML ─────────────────────────────────────────────────────────────────
 def get_similar(df_filtered, X):
     if df_filtered.empty:
         return pd.DataFrame()
@@ -28,18 +35,21 @@ def recommend(user_input, X, df_index):
     df_filtered = df_index.copy()
     if user_input.get("category"):
         df_filtered = df_filtered[df_filtered["category"] == user_input["category"]]
-    if user_input.get("price_max"):
+    if user_input.get("price_max") is not None:
         df_filtered = df_filtered[df_filtered["price"] <= user_input["price_max"]]
-    if user_input.get("price_min"):
+    if user_input.get("price_min") is not None:
         df_filtered = df_filtered[df_filtered["price"] >= user_input["price_min"]]
-    if user_input.get("thickness"):
-        df_filtered = df_filtered[df_filtered["thickness"] == user_input["thickness"]]
+    if user_input.get("thickness_min") is not None:
+        df_filtered = df_filtered[df_filtered["thickness"] >= user_input["thickness_min"]]
+    if user_input.get("thickness_max") is not None:
+        df_filtered = df_filtered[df_filtered["thickness"] < user_input["thickness_max"]]
     if user_input.get("width"):
         df_filtered = df_filtered[df_filtered["width"] == user_input["width"]]
     if user_input.get("length"):
         df_filtered = df_filtered[df_filtered["length"] == user_input["length"]]
     if user_input.get("firmness") is not None:
         df_filtered = df_filtered[df_filtered["firmness"] == user_input["firmness"]]
+        
     df_result = get_similar(df_filtered, X)
     if df_result.empty:
         return pd.DataFrame()
@@ -66,22 +76,15 @@ def recommend_userclick(user_click_row, X, df_index):
     df_unique = df_result.drop_duplicates(subset=["product_name"], keep="first")
     
     top15 = df_unique.head(15).reset_index(drop=True)
-
     return top15.sample(n=min(5, len(top15)), random_state=None)
 
 
-
-def recommend_cold_start(df_index, price_min=None, price_max=None):
+def recommend_cold_start(df_index):
     df_sorted = df_index.copy()
-    # lọc theo giá nếu có
-    if price_min is not None:
-        df_sorted = df_sorted[df_sorted["price"] >= price_min]
-    if price_max is not None:
-        df_sorted = df_sorted[df_sorted["price"] <= price_max]
     if df_sorted.empty:
         return pd.DataFrame()
     df_sorted = df_sorted.sort_values(by="popularity_score", ascending=False)
     df_unique = df_sorted.drop_duplicates(subset=["category", "product_name"])
     top_cold_start = df_unique.groupby("category").head(3)
+    top_cold_start = top_cold_start.sort_values(by="popularity_score", ascending=False)
     return top_cold_start.reset_index(drop=True)
-
