@@ -110,5 +110,5 @@ streamlit run app.py
 * **Similarity Computation:** Cốt lõi của hệ thống sử dụng phương pháp **Content-based Filtering**. Bằng cách tính toán độ tương đồng Cosine (Cosine Similarity) trên không gian vector đặc trưng đa chiều, hệ thống có thể trích xuất và gợi ý Top-K sản phẩm phù hợp nhất với ngữ cảnh của người dùng.
 
 ## 👨‍💻 7. Tác giả (Contributors)
-* **Nguyễn Nhớ Bảo Huy** - GitHub: [@nnbhuy-dev](https://github.com/nnbhuy-dev)
+* **Nguyễn Nhớ Bảo Huy** - GitHub: [@nnbhuy-dev](https://github.com/nnbaohuy-dev)
 * **Bùi Đức Gia Huy** - GitHub: [@HuyyGiaa](https://github.com/HuyyGiaa)
