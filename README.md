@@ -6,6 +6,7 @@ Dự án này là một hệ thống thu thập, xử lý dữ liệu và gợi 
 
 Dự án được tổ chức theo cấu trúc sau nhằm đảm bảo tính module hóa và dễ dàng mở rộng:
 
+```text
 mattress-recommender/
 ├── crawlers/                  # Các script Python cào dữ liệu từ nhiều nguồn
 │   ├── crawl-khonemtonghop.py
