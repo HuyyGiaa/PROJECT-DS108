@@ -33,36 +33,40 @@ Trong bối cảnh thương mại điện tử phát triển, người dùng mua
 
 ```text
 mattress-recommender/
-├── crawlers/                  # Các kịch bản thu thập dữ liệu (Python scripts)
-│   ├── crawl-khonemtonghop.py
-│   ├── crawl-thegioinem.py
-│   ├── crawl-vuanem.py
-│   └── crawl_thegioigiuongnem.py
-├── data/                      # Lưu trữ dữ liệu qua từng giai đoạn xử lý
-│   ├── raw/                   # Dữ liệu gốc thu thập từ web (.json)
-│   ├── processed/             # Dữ liệu đã qua làm sạch bước 1 (.csv)
-│   └── final/                 # Ma trận đặc trưng & dữ liệu sạch cuối cùng (.npz, .csv)
-├── models/                    # Models & Encoders đã được huấn luyện
-│   ├── oe_firmness.pkl        # Model mã hóa thứ bậc (độ cứng)
-│   ├── ohe_brand.pkl          # Model mã hóa one-hot (thương hiệu)
-│   ├── scaler.pkl             # Model chuẩn hóa dữ liệu số
-│   ├── tfidf_desc.pkl         # Model vector hóa mô tả (TF-IDF)
-│   └── tfidf_mat.pkl          # Ma trận TF-IDF
-├── notebooks/                 # Môi trường phân tích & thử nghiệm
+├── crawlers/                 # Các kịch bản thu thập dữ liệu (Python scripts)
+│   ├── crawl_khonemtonghop.py
+│   ├── crawl_thegioigiuongnem.py
+│   ├── crawl_thegioinem.py
+│   └── crawl_vuanem.py
+├── data/                     # Lưu trữ dữ liệu qua từng giai đoạn xử lý
+│   ├── raw/                  # Dữ liệu gốc thu thập từ web (.json)
+│   ├── processed/            # Dữ liệu đã qua làm sạch bước 1 (.csv)
+│   └── final/                # Ma trận đặc trưng & dữ liệu sạch cuối cùng (.npz, .csv)
+├── models/                   # Models & Encoders đã được huấn luyện
+│   ├── oe_firmness.pkl       # Model mã hóa thứ bậc (độ cứng)
+│   ├── ohc_brand.pkl         # Model mã hóa one-hot (thương hiệu)
+│   ├── scaler.pkl            # Model chuẩn hóa dữ liệu số
+│   ├── tfidf_desc.pkl        # Model vector hóa mô tả (TF-IDF)
+│   └── tfidf_mat.pkl         # Ma trận TF-IDF
+├── notebooks/                # Môi trường phân tích & thử nghiệm
 │   ├── cleaning.ipynb
 │   ├── eda.ipynb
 │   └── preprocessing.ipynb
-├── output/                    # Kết quả trực quan hóa dữ liệu (EDA)
-├── rcm_sys/                   # Mã nguồn chính của Hệ thống gợi ý
-│   ├── app.py                 # File thực thi giao diện Streamlit
-│   └── rcm_sys.py             # Lõi logic của hệ thống gợi ý
-├── src/                       # Các module xử lý lõi (Core modules)
-│   ├── cleaning.py            # Logic làm sạch dữ liệu
-│   ├── data_loader.py         # Hàm hỗ trợ tải dữ liệu
-│   └── preprocessing.py       # Logic tiền xử lý và trích xuất đặc trưng
-├── Dockerfile                 # File cấu hình đóng gói ứng dụng
-├── README.md                  # Tài liệu mô tả dự án
-└── requirements.txt           # Danh sách các thư viện phụ thuộc
+├── output/                   # Kết quả trực quan hóa dữ liệu (EDA)
+├── rcm_sys/                  # Mã nguồn chính của Hệ thống gợi ý
+│   ├── app.py                # File thực thi giao diện Streamlit
+│   └── rcm_sys.py            # Lõi logic của hệ thống gợi ý
+├── src/                      # Các module xử lý lõi (Core modules)
+│   ├── cleaning.py           # Logic làm sạch dữ liệu
+│   ├── data_loader.py        # Hàm hỗ trợ tải dữ liệu
+│   └── preprocessing.py      # Logic tiền xử lý và trích xuất đặc trưng
+├── .dockerignore             # Cấu hình bỏ qua file khi build Docker
+├── .gitignore                # Cấu hình bỏ qua file rác khi push Git
+├── codebook.csv              # Từ điển dữ liệu giải thích ý nghĩa các cột
+├── demo.png                  # Ảnh chụp giao diện Web thực tế
+├── Dockerfile                # File cấu hình đóng gói ứng dụng
+├── README.md                 # Tài liệu mô tả dự án
+└── requirements.txt          # Danh sách các thư viện phụ thuộc
 ```
 
 ## ⚙️ 5. Hướng dẫn Cài đặt & Triển khai (Installation & Deployment)
@@ -102,9 +106,9 @@ pip install -r requirements.txt
 ```
 
 **Bước 4:** Khởi chạy giao diện Web với Streamlit:
+Trỏ Terminal về thư mục gốc của dự án (mattress-recommender) và chạy lệnh:
 ```bash
-cd rcm_sys
-streamlit run app.py
+streamlit run rcm_sys/app.py
 ```
 
 ## 🧠 6. Phương pháp luận (Methodology)
@@ -115,5 +119,5 @@ streamlit run app.py
 * **Similarity Computation:** Cốt lõi của hệ thống sử dụng phương pháp **Content-based Filtering**. Bằng cách tính toán độ tương đồng Cosine (Cosine Similarity) trên không gian vector đặc trưng đa chiều, hệ thống có thể trích xuất và gợi ý Top-K sản phẩm phù hợp nhất với ngữ cảnh của người dùng.
 
 ## 👨‍💻 7. Tác giả (Contributors)
-* **Nguyễn Nhớ Bảo Huy** - GitHub: [@nnbhuy-dev](https://github.com/nnbhuy-dev)
+* **Nguyễn Nho Bảo Huy** - GitHub: [@nnbhuy-dev](https://github.com/nnbhuy-dev)
 * **Bùi Đức Gia Huy** - GitHub: [@HuyyGiaa](https://github.com/HuyyGiaa)
