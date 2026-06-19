@@ -387,13 +387,11 @@ def standardize_origin(text):
     elif 'thái' in val:
         return 'Thái Lan'
         
-    # Nhóm 5: Đòn chốt hạ - TẤT CẢ các trường hợp còn lại đều về Việt Nam
+    # Nhóm 5: TẤT CẢ các trường hợp còn lại đều về Việt Nam
     # (Bao gồm cả các lỗi gõ sai như "Viết Nam", "Viết nam", "Cty nệm ACB", "Liên Á",...)
     else:
         return 'Việt Nam'
-    
-    # Thêm vào cleaning.py trong hàm flatten_dataset
-# hoặc tạo hàm riêng
+
 
 def clean_text(text):
     if pd.isna(text):

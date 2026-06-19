@@ -1,0 +1,20 @@
+﻿Tên cột,Kiểu dữ liệu,Mô tả ý nghĩa,Miền giá trị / Đơn vị
+product_name,String,Tên đầy đủ của biến thể sản phẩm nệm,Văn bản tự do
+brand,String,Thương hiệu sản xuất hoặc phân phối,"Gummi, Amando, Liên Á, Vạn Thành..."
+material_type,String,Vật liệu cấu tạo chi tiết của nệm,"Cao su thiên nhiên, Lò xo túi, Memory Foam..."
+category,String,Danh mục vật liệu cốt lõi đã được nhóm chuẩn hóa,"Cao su, Foam, Lò xo, Bông ép, Hybrid"
+description,String,Văn bản mô tả sản phẩm (đã gộp layer_composition và technology để vector hóa TF-IDF),Văn bản tự do
+rating,Float,Điểm đánh giá trung bình từ người mua,Từ 0.0 đến 5.0
+reviews,Float,Tổng số lượng lượt đánh giá của sản phẩm,Số nguyên (>= 0)
+product_sold_number,Float,Tổng số lượng sản phẩm đã được bán ra,Số nguyên (>= 0)
+image_url,String,Đường dẫn liên kết đến hình ảnh minh họa sản phẩm,URL (http/https)
+link,String,Đường dẫn liên kết gốc đến trang sản phẩm trên website đại lý,URL (http/https)
+origin,String,Xuất xứ của thương hiệu hoặc nơi gia công sản xuất,"Việt Nam, Mỹ, Nhật Bản..."
+warranty,Float,Thời gian bảo hành chính hãng đã được đồng bộ hóa,Tháng (Ví dụ: 120 = 10 năm)
+firmness,String,Thang đo cảm nhận độ cứng vật lý của nệm (được nội suy nếu thiếu),"Mềm, Mềm - Trung bình, Trung bình, Trung bình - Hơi cứng, Cứng vừa, Cứng, Không xác định"
+layer_composition,String,Cấu trúc các lớp vật liệu thành phần (có tỷ lệ khuyết thiếu cao),Văn bản (có thể chứa Null)
+technology,String,Công nghệ sản xuất nổi bật được tích hợp (có tỷ lệ khuyết thiếu cao),Văn bản (có thể chứa Null)
+thickness,Float,Độ dày vật lý của biến thể nệm (đã xử lý ngoại lai),Centimet (cm)
+price,Float,Giá bán niêm yết của biến thể kích thước tương ứng,VNĐ
+width,Float,Chiều rộng vật lý của biến thể nệm (tách từ tổ hợp Size),Centimet (cm)
+length,Float,Chiều dài vật lý của biến thể nệm (tách từ tổ hợp Size),Centimet (cm)
