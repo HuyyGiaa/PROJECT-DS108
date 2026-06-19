@@ -2,9 +2,14 @@
 
 ![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
 ![Docker](https://img.shields.io/badge/docker--ready-blue)
+**🌐 Live Demo trải nghiệm trực tiếp:** [https://mattress-recommender.onrender.com](https://mattress-recommender.onrender.com)
 
 ## 📖 1. Giới thiệu dự án
 Trong bối cảnh thương mại điện tử phát triển, người dùng mua sắm nội thất (đặc biệt là giường nệm) thường gặp khó khăn do **dữ liệu bị phân mảnh** trên nhiều trang web khác nhau và thiếu tính chuẩn hóa. Thêm vào đó, các công cụ tìm kiếm hiện tại chủ yếu sử dụng "bộ lọc cứng" (hard-filter), thiếu linh hoạt và dễ dẫn đến việc trả về 0 kết quả nếu người dùng thiết lập tiêu chí quá khắt khe.
+
+<div align="center">
+  <img src="demo.png" alt="Giao diện Mattress Recommender System" width="800"/>
+</div>
 
 **Mattress Recommender System** là một giải pháp toàn diện nhằm giải quyết các vấn đề trên. Dự án xây dựng một *data pipeline* hoàn chỉnh: từ tự động thu thập dữ liệu (crawling) trên nhiều nền tảng, tiền xử lý, chuẩn hóa, đến việc trích xuất đặc trưng và xây dựng một **hệ thống gợi ý thông minh (Soft-match)**. Hệ thống giúp hợp nhất dữ liệu và gợi ý các sản phẩm tương tự hoặc thay thế dựa trên nhu cầu thực tế của người dùng.
 
